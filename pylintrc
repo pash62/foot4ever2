@@ -1,0 +1,70 @@
+[MASTER]
+# Control the amount of potential inferred values when inferring a single
+# object. This can help the performance when dealing with large functions or
+# complex, nested conditions.
+limit-inference-results=100
+
+# When enabled, pylint would attempt to guess common misconfiguration and emit
+# user-friendly hints instead of false-positive error messages.
+suggestion-mode=yes
+
+# Disable check for pydantic as it gives incorrect error.
+extension-pkg-whitelist=pydantic
+
+[MESSAGES CONTROL]
+disable=C0413, # Import "xxx" should be placed at the top of the module (wrong-import-position)
+		C0114, # Missing module docstring (missing-module-docstring)
+		W1203, # Use lazy % formatting in logging functions (logging-fstring-interpolation)
+		W0621, # Redefining name from outer scope => This happens for pytest fixures.
+		W0511  # Used when for FIXME warning note => This happens for TODO comments
+
+[REPORTS]
+output-format=colorized
+reports=no # Tells whether to display a full report or only the messages.
+
+[BASIC]
+argument-naming-style=snake_case
+attr-naming-style=snake_case
+class-attribute-naming-style=snake_case
+variable-naming-style=snake_case
+class-naming-style=PascalCase
+function-naming-style=snake_case
+method-naming-style=snake_case
+module-naming-style=snake_case
+const-naming-style=UPPER_CASE
+good-names=i,j,k,v,ex,e,df,f,id
+bad-names=foo,bar,baz,toto,tutu,tata,alaki
+include-naming-hint=yes
+docstring-min-length=1
+
+[FORMAT]
+max-line-length=200
+max-module-lines=1000
+indent-after-paren=4 # Number of spaces of indent required inside a hanging or continued line.
+# String used as indentation unit. This is usually "    " (4 spaces) or "\t" (1 tab).
+indent-string='    '
+
+[LOGGING]
+logging-format-style=new
+
+[VARIABLES]
+callbacks=cb_,_cb # A callback name must start or end with one of those strings.
+init-import=no # Tells whether we should check for unused import in __init__ files.
+	  
+[DESIGN]
+max-args=10 # Maximum number of arguments for function / method.
+max-attributes=30 # Maximum number of attributes for a class (see R0902).
+max-bool-expr=5 # Maximum number of boolean expressions in an if statement (see R0916).
+max-branches=15 # Maximum number of branch for function / method body.
+max-locals=30 # Maximum number of locals for function / method body.
+max-parents=7 # Maximum number of parents for a class (see R0901).
+max-public-methods=40 # Maximum number of public methods for a class (see R0904).
+max-returns=10 # Maximum number of return / yield for function / method body.
+max-statements=50 # Maximum number of statements in function / method body.
+min-public-methods=2 # Minimum number of public methods for a class (see R0903).
+
+[EXCEPTIONS]
+overgeneral-exceptions=BaseException # Too general exception
+
+[TYPE CHECK]
+generated-members=bamboo.*
