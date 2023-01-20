@@ -10,6 +10,7 @@ admin_cmds = OrderedDict([('add', "S'inscrire dans le prochain match"),
                           ('add_susp', "Susprendre un joueur"),
                           ('del_susp', "Annuler la suspension d'un joueur"),
                           ('set_prog', "Mettre le prochain jeu"),
+                          ('set_admins', 'Set group admins'),
                           ('all', "Afficher tous les noms"),
                           ('next', 'Afficher le jour dans 45 jours')])
 
@@ -40,10 +41,12 @@ class Msg():  # pylint:disable=too-few-public-methods
     reserve = "Les réserves"
     timkeshi_is_running = "L'arrangement des équipes est en train! Pour recommancer, il faut d'abord annuler celui d'en cours."
     bad_set_prog_msg = "Le format doit être 'date heure, centre',\npar exemple: 01/01/2019 20:30, 0"
-    bad_set_prog_succeed = "Le changement suivant a effectué avec du succès:"
+    change_succeeded = "Le changement suivant a effectué avec du succès:"
     sign_up_not_started = "La date du prochain jeu n'est pas encore définie."
     next_potential_date = '45 days later will be {} {}'
     sign_up_not_authorized = "Stp mets d'abord un prénom et/ou nom sur ton profile Telegram puis réessaie."
+    admins_added = 'Les admins suivant ont été settés: {}'
+    reserve_will_play = '@{}: Tu vas remplacer {}, tu peux confirmer avoir lu ce message?'
 
 
 # The description to set in bot father
@@ -87,4 +90,4 @@ chat_ids = {
     "Teste team keshi": -280450485,
     "Foot4Ever": -1001090335589,
     "Urban Football": -1001166982817
-    }
+}

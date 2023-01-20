@@ -3,9 +3,9 @@ import os
 import html
 import json
 from datetime import datetime, timedelta
+import traceback
 import pytz
 import boto3
-import traceback
 
 from telegram import InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
@@ -77,7 +77,8 @@ class FootUser():
             if self.user_name and self.user_name.lower() in foreign_players_rates:
                 return foreign_players_rates[self.user_name.lower()]
         except Exception:
-            return [3.00, 3.00, 3.00, 3.00]
+            pass
+        return [3.00, 3.00, 3.00, 3.00]
 
     @staticmethod
     def make_camel_case(first_name, last_name):
@@ -136,6 +137,8 @@ class Foot4Ever():
         self.user_rates_s3 = None
         self.players_info = None
         self.foreign_players_rates = None
+        self.admins_names = None
+        self.cur_players = None
 
         # Define commands
         self.init_commands(app)
@@ -165,8 +168,22 @@ class Foot4Ever():
         self.reset_teams()
         for user in self.all_players:
             user.order_id = self.admins.index(user.id) if user.id in self.admins else -1
-        await context.bot.send_message(chat_id=cur_chat_id, text=Msg.bad_set_prog_succeed)
+        await context.bot.send_message(chat_id=cur_chat_id, text=Msg.change_succeeded)
         await self.get_prog(update, context)
+        self.save_match_info()
+
+    async def set_admins(self, update, context):
+        """
+        Set admins of the group who can use admin commands and who are always added in the list.
+        """
+        if not self.is_admin(context.bot, update):
+            return
+
+        await self.load_users()
+
+        admin_names = ' '.join(context.args)
+        self.admins_names = admin_names.split(',')
+        await context.bot.send_message(chat_id=update.effective_message.chat_id, text=Msg.admins_added.format(admin_names))
         self.save_match_info()
 
     def init_dates(self, date='20/06/2018 19:30', center_index=2):
@@ -190,7 +207,7 @@ class Foot4Ever():
         app.add_handler(CommandHandler('add', self.add_player))
         app.add_handler(CommandHandler('del', self.del_player))
         app.add_handler(CommandHandler('prog', self.get_prog))
-        app.add_handler(CommandHandler('players', self.get_next_players))
+        app.add_handler(CommandHandler('players', self.show_next_players))
         app.add_handler(CommandHandler('help', self.help))
         app.add_handler(CommandHandler('help_admins', self.help_admins))
         app.add_handler(CommandHandler('all', self.get_all_players_username))
@@ -199,6 +216,7 @@ class Foot4Ever():
         app.add_handler(CommandHandler('del_susp', self.show_del_forbidden_player_keyboard))
         app.add_handler(CommandHandler('arrange', self.show_timkeshi_buttons))
         app.add_handler(CommandHandler('set_prog', self.set_prog))
+        app.add_handler(CommandHandler('set_admins', self.set_admins))
         app.add_handler(CallbackQueryHandler(self.on_btn_callback))
 
     def init_users_and_chats(self):
@@ -207,6 +225,7 @@ class Foot4Ever():
         """
         self.all_players = []
         self.cur_players = []
+        self.admins_names = []
         self.load_s3_storage()
         self.load_user_rates()
         self.load_match_info()
@@ -217,11 +236,10 @@ class Foot4Ever():
         Load all users info via user info file which contains user Ids
         """
         if self.all_players:
-            return # Already loaded
+            return  # Already loaded
 
         self.admins = []
         admins = await self.bot.get_chat_administrators(self.foot_chat_id)
-        print(f'admins are: {admins}')
         for chat_member in admins:
             user = chat_member.user
             user_id, first_name, last_name = user.id, user.first_name, user.last_name
@@ -229,7 +247,7 @@ class Foot4Ever():
             user = FootUser(user_id, first_name, last_name, self.players_info, self.foreign_players_rates)
             if user.id in self.cur_players:
                 user.order_id = self.cur_players.index(user.id)
-            if user.first_name.lower() in ['pasha', 'saman']:
+            if user.first_name.lower() in self.admins_names:  # first name of admins, e.g. pasha, saman
                 self.admins.append(user.id)
                 user.is_admin = True
             self.all_players.append(user)
@@ -237,8 +255,7 @@ class Foot4Ever():
         for player in self.cur_players:
             if isinstance(player, str):
                 user = self.add_foreign_player(player, False)
-                user.order_id = self.cur_players.index(player)
-        # self.save_all_users_info()
+                user[0].order_id = self.cur_players.index(player)
 
     def reset_teams(self):
         """
@@ -281,7 +298,7 @@ class Foot4Ever():
 
         msg = f'{Msg.next_week_prog}\n{self.get_next_program()}'
         await context.bot.send_message(chat_id=update.message.chat_id, text=msg, parse_mode='HTML')
-        
+
         lat, lon = list(self.centers.values())[self.next_center_index]
         await context.bot.send_location(chat_id=update.message.chat_id, latitude=lat, longitude=lon)
 
@@ -300,20 +317,27 @@ class Foot4Ever():
         msg += f'\U0001f4cd {centre[0]} <b>{centre[1]}</b> \n'
         return msg
 
-    async def get_next_players(self, update, context):
+    async def show_next_players(self, update, context):
         """
         Next session program & players
         """
+        await self.load_users()
         cur_chat_id = update.effective_message.chat_id
         await context.bot.send_message(chat_id=cur_chat_id, text=self.get_program_and_players(), parse_mode='HTML')
+
+    def get_next_players(self):
+        """
+        Returns the list of players playing in the next game.
+        """
+        next_players = sorted(self.all_players, key=lambda x: x.order_id)
+        return [player.user_name for player in next_players if player.order_id >= 0]
 
     def get_program_and_players(self):
         """
         Next session program & players
         """
         msg = f'{self.get_next_program()}\n'
-        next_players = sorted(self.all_players, key=lambda x: x.order_id)
-        next_players = [player.user_name for player in next_players if player.order_id >= 0]
+        next_players = self.get_next_players()
 
         for index, player in enumerate(next_players):
             if index == 10:
@@ -338,7 +362,6 @@ class Foot4Ever():
             user = FootUser(e_user.id, e_user.first_name, e_user.last_name, self.players_info, self.foreign_players_rates)
             user.is_admin = user.id in self.admins
             self.all_players.append(user)
-            # self.save_all_users_info()
         return user
 
     def is_admin(self, bot, update):
@@ -416,7 +439,7 @@ class Foot4Ever():
         if not is_pasha and datetime.now() + timedelta(days=2) > self.next_date:
             await context.bot.send_message(chat_id=cur_chat_id, text=Msg.too_late_del)
             await context.bot.send_message(chat_id=chat_ids['Foot Admin'],
-                                     text=f'{user.user_name} {Msg.try_to_del}')
+                                           text=f'{user.user_name} {Msg.try_to_del}')
             return
 
         if user.order_id >= 0:
@@ -431,10 +454,16 @@ class Foot4Ever():
         if not self.is_admin(bot, update):
             return
 
+        cur_chat_id = update.effective_message.chat_id
         for player in ' '.join(args).split(','):
-            self.add_foreign_player(player, is_in_next_match)
+            user, alert_new_user, next_players = self.add_foreign_player(player, is_in_next_match)
 
-        await bot.send_message(chat_id=update.effective_message.chat_id, text=self.get_program_and_players(), parse_mode='HTML')
+        await bot.send_message(chat_id=cur_chat_id, text=self.get_program_and_players(), parse_mode='HTML')
+
+        # New user has been added from reserved users, let's ping him
+        if alert_new_user:
+            await bot.send_message(chat_id=cur_chat_id, text=Msg.reserve_will_play.format(next_players[10], user.user_name))
+
         self.save_match_info()
 
     def add_foreign_player(self, player, is_in_next_match):
@@ -446,19 +475,16 @@ class Foot4Ever():
             names = player.split(' ')
             user = FootUser(0, names[0], names[1] if len(names) > 1 else '', self.players_info, self.foreign_players_rates)
             self.all_players.append(user)
+
+        next_players = self.get_next_players()
         if is_in_next_match:
+            alert_new_user = False
             user.order_id = self.get_next_order_id()
         else:
+            alert_new_user = len(next_players) > 10 and user.order_id < 10  # pylint:disable=chained-comparison
             user.order_id = -1
-        return user
 
-    def save_all_users_info(self):
-        """
-        Keep user names & Ids in a file
-        """
-        if len(self.all_players) > 0:
-            with open(self.user_info_path, mode='w', encoding='utf8') as f:
-                f.write(json.dumps({user.id: user.user_name for user in self.all_players if user.user_name}))
+        return user, alert_new_user, next_players
 
     def load_s3_storage(self):
         """
@@ -490,6 +516,7 @@ class Foot4Ever():
             if content:
                 self.init_dates(date=content['date'], center_index=content['center_index'])
                 self.cur_players = content['cur_players'][:]
+                self.admins_names = content.get('admins_names', ['pasha', 'saman'])[:]
 
     def load_user_rates(self):
         """
@@ -518,6 +545,7 @@ class Foot4Ever():
         content = {}
         content['date'] = datetime.strftime(self.next_date, '%d/%m/%Y %H:%M')
         content['center_index'] = self.next_center_index
+        content['admins_names'] = self.admins_names
         content['cur_players'] = []
         for user in sorted(self.all_players, key=lambda x: x.order_id):
             if user.order_id < 0:

@@ -145,8 +145,8 @@ class TeamKeshi():
         if is_finish:
             return captain_2 if captain_1 in self.who_validated else captain_1
         if len(self.teams[captain_1]) == len(self.teams[captain_2]):
-            rate_1 = sum(captain_1.foot_rates)/len(captain_1.foot_rates)
-            rate_2 = sum(captain_2.foot_rates)/len(captain_2.foot_rates)
+            rate_1 = sum(captain_1.foot_rates) / len(captain_1.foot_rates)
+            rate_2 = sum(captain_2.foot_rates) / len(captain_2.foot_rates)
             if rate_1 > 0 and rate_2 > 0:
                 return captain_1 if rate_1 <= rate_2 else captain_2
         return captain_1 if len(self.teams[captain_1]) <= len(self.teams[captain_2]) else captain_2
